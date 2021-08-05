@@ -1,103 +1,101 @@
 const axios = require('axios');
 const fs = require('fs');
-
-
-const clientID = '';
-const secretKey = '';
-
-
-const destHub = 105414;
-const outputFile = 'amazon-smartFilters';
-
+const commandLineArgs = require('command-line-args');
 
 const auth = async (key, secret) => {
-    return axios.post('https://v2.api.uberflip.com/authorize', {
+    return await axios.post('https://v2.api.uberflip.com/authorize', {
         grant_type:	'client_credentials',
         client_id: key,
         client_secret: secret
     })
+    .catch(function (error) {
+        console.log(error);
+        })
     .then(function (response) {
         // tokenType = response.data.token_type;
          const token = response.data.access_token;
         // console.log(token);
         return token;
     })
-    .catch(function (error) {
-        console.log(error);
-        })
 
 }
 
 
-const callLoop = async function(token){
-    let url = `https://v2.api.uberflip.com/hubs/${destHub}/filters?limit=10&page=1`;
-    let returnedItems = [];
-    let totalItems;
-        
-    async function call(url, token){
-    axios.get(url, {
-            headers: { 
-                'Authorization': `Bearer ${token}`,
-                'User_Agent': `Nathan UF`
-              }
-        })
-        .then(res => {
-            let next = res.data.meta.next_page;
-            // let prev = res.data.meta.prev_page;
-            // console.log(next);
-            let objs = res.data.data;
-            // console.log(objs);
-            // let array = [];
-            
-            objs.forEach(obj => returnedItems.push(obj));
-            
-            if(totalItems !== returnedItems.length){
-                totalItems = res.data.meta.count;
-                console.log(`returnedItems: ${returnedItems.length}, totalItems: ${totalItems}`);
-                call(next,token);
-            }
-            else {
-                console.log(`returnedItems: ${returnedItems.length} = totalItems: ${totalItems}`);
-                console.log(`creating file`);
-                generateFile(returnedItems)
-            }
-            
-        }) 
-        .catch(error => {
-            console.log(error);
-            })
-        
-    }
-    if(totalItems === undefined){
-        call(url,token);
-    }
-}
-
-const  generateFile = async(res) => {
-    const allowArray = [
-        "id",
-        "title",
-        "description",
-        "url",
-        "seo_title",
-        "seo_description",
-        "thumbnail_url",
-        "content",
-        "stream_id"
+const run = async(argv) => {
+    const optionDefinitions = [
+      { name: 'nocommit', type: Boolean },
+      {name: 'spec',
+        type: String,
+      },
+      {
+        name: 'key',
+        type: String,
+      },
+      {
+        name: 'sec',
+        type: String,
+      },
+      {
+        name: 'hub',
+        type: Number,
+      },
     ];
-    let data = JSON.stringify(res, null, 2);
-    fs.writeFileSync(`${outputFile}.json`, data);
-    console.log('json created');
+  
+    // defining commandline variables
+    const options = commandLineArgs(optionDefinitions, { argv });
+    let apiKey = options.key; //--key
+    let apiSecret = options.sec; //--sec
+    const hub_id = options.hub; //--hub
+    const file = options.file; //--hub
+
+    console.log(options);
+    // warning for missing commandline arguments
+    if (options.nocommit) {
+      console.warn('--nocommit was supplied.');
+    }
+  
+    if (apiKey === undefined ) {
+      console.error('no apikey was supplied please follow this format $node index.js run --key ENTERAPIKEY --sec ENTERFEEDURL. --hub ENTERHUBID');
+      return;
+    }
+    if (apiSecret === undefined ) {
+        console.error('no apikey was supplied please follow this format $node index.js run --key ENTERAPIKEY --sec ENTERFEEDURL. --hub ENTERHUBID');
+        return;
+    }
+    if (hub_id === undefined ) {
+        console.error('no apikey was supplied please follow this format $node index.js run --key ENTERAPIKEY --sec ENTERFEEDURL. --hub ENTERHUBID');
+    return;
+    }
+    if (file === undefined ) {
+        console.error('no apikey was supplied please follow this format $node index.js run --key ENTERAPIKEY --sec ENTERFEEDURL. --hub ENTERHUBID');
+    return;
+    }
+  
+    // get all tags
+    const token = await auth(apiKey, apiSecret);
+    const loopResult = await loop(token, hub_id);
+    // const dataResult = await dataExample(loopResult);
+    await writeExample(loopResult, file);
+
   };
 
-const run = async function(){
-    const token = await auth(clientID, secretKey);
-    // console.log(token);
-    console.log('token created');
-    const data = await callLoop(token);
-    // console.log(data.length);
-    console.log('data confirmed');
-    // await generateFile(data);
-
-};
-run();
+const main = () => {
+    // These first few lines are just configuration
+    const mainOptionDefinitions = [{ name: 'command', defaultOption: true }];
+    const mainOptions = commandLineArgs(mainOptionDefinitions, {
+      stopAtFirstUnknown: true,
+    });
+    const commandOptions = mainOptions._unknown || [];
+    // Creates cases for the different commands you might pass
+    switch (mainOptions.command) {
+      // The case here refers to the COMMAND you pass after the file name
+      case 'run':
+        return run(commandOptions);
+      default:
+        // Will notify that no command was provided
+        console.error(`Unknown command '${mainOptions.command}'.`);
+        return null;
+    }
+  };
+  
+  main();
